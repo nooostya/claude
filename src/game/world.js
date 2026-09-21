@@ -9,7 +9,7 @@
 //                 Remote-owned projectiles are visual only. See src/net/.
 
 import { COMBAT, MATCH, PHYS, TILE } from '../core/config.js';
-import { clamp, rand, randInt, dist, dist2, segmentHitsBox, TAU } from '../core/math.js';
+import { clamp, rand, randInt, dist, dist2, random, segmentHitsBox, TAU } from '../core/math.js';
 import { WEAPONS, rollPrimary } from './weapons.js';
 import { Projectile, Pickup } from './entities.js';
 import { Particles } from './particles.js';
@@ -203,7 +203,7 @@ export class World {
     p.x = body.x; p.y = body.y; p.vx = body.vx; p.vy = body.vy;
     if (hit.down || hit.up) { p.vy = -hit.landedAt * 0.42 || p.vy * -0.42; p.vx *= 0.72; }
     if (hit.left || hit.right) p.vx *= -0.52;
-    if (Math.random() < 0.3) this.particles.trail(p.x, p.y, '#ff9a4d', 1.8, 0.18);
+    if (random() < 0.3) this.particles.trail(p.x, p.y, '#ff9a4d', 1.8, 0.18);
     if (p.fuse <= 0) {
       this._detonate(p);
       return false;

@@ -9,10 +9,36 @@ export const sign = (v) => (v < 0 ? -1 : v > 0 ? 1 : 0);
 /** Frame-rate independent exponential approach. `rate` = fraction remaining after 1s. */
 export const damp = (a, b, rate, dt) => lerp(a, b, 1 - Math.pow(rate, dt));
 
-export const rand = (a = 1, b) => (b === undefined ? Math.random() * a : a + Math.random() * (b - a));
+// ---------------------------------------------------------------------------
+// Randomness
+//
+// Gameplay randomness goes through `random()` rather than Math.random directly,
+// so a run can be made reproducible from a seed (used by the Parlor
+// integration). Unseeded, it is Math.random and the game behaves as before.
+// ---------------------------------------------------------------------------
+
+let _random = Math.random;
+let _seed = null;
+
+/** Make every subsequent gameplay roll reproducible from `seed`. */
+export function setSeed(seed) {
+  _seed = seed >>> 0;
+  _random = mulberry32(_seed);
+}
+
+/** Go back to unseeded randomness. */
+export function clearSeed() {
+  _seed = null;
+  _random = Math.random;
+}
+
+export const currentSeed = () => _seed;
+export const random = () => _random();
+
+export const rand = (a = 1, b) => (b === undefined ? random() * a : a + random() * (b - a));
 export const randInt = (a, b) => Math.floor(rand(a, b + 1));
-export const pick = (arr) => arr[(Math.random() * arr.length) | 0];
-export const chance = (p) => Math.random() < p;
+export const pick = (arr) => arr[(random() * arr.length) | 0];
+export const chance = (p) => random() < p;
 
 export const dist2 = (ax, ay, bx, by) => {
   const dx = bx - ax, dy = by - ay;

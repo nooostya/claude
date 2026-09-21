@@ -2,7 +2,7 @@
 // that moves between the attract screen, a solo match and an online match.
 
 import { SIM, NET, MATCH } from './core/config.js';
-import { clamp, pick } from './core/math.js';
+import { clamp, pick, rand, random, setSeed, clearSeed } from './core/math.js';
 import { Input } from './core/input.js';
 import { Audio, playEvents } from './core/audio.js';
 import { World } from './game/world.js';
@@ -15,6 +15,17 @@ import { Renderer } from './render/draw.js';
 import { Hud } from './render/hud.js';
 import { NetClient } from './net/client.js';
 import { UI } from './ui/screens.js';
+import { ParlorBridge } from './core/parlor.js';
+
+// Settings for a Parlor run started directly (autoStart). Fixed so every
+// competitor plays the same match rules; the arena still comes from the seed.
+const COMPETITIVE_RUN = {
+  mapId: 'random',
+  bots: 5,
+  difficulty: 'veteran',
+  scoreLimit: MATCH.scoreLimit,
+  name: 'YOU',
+};
 
 class Game {
   constructor() {
@@ -29,6 +40,7 @@ class Game {
     this.hud = new Hud();
     this.ui = new UI(this);
     this.net = null;
+    this.parlor = new ParlorBridge(this, typeof window !== 'undefined' ? window.Parlor : null);
 
     this.state = 'menu';         // menu | playing | results
     this.paused = false;
@@ -117,7 +129,7 @@ class Game {
       const f = world.addFighter({
         id: 1000 + i, name: names[i], heroId: hero.id, isBot: true,
       });
-      const jitter = (Math.random() - 0.5) * 0.14;
+      const jitter = (random() - 0.5) * 0.14;
       this.brains.set(f.id, new BotBrain(f, clamp(diff.value + jitter, 0, 1)));
     }
   }
@@ -127,6 +139,7 @@ class Game {
   // ------------------------------------------------------------------
   startDemo() {
     this.brains.clear();
+    clearSeed();
     this.world = this.makeWorld('random', { scoreLimit: 999, timeLimit: 99999 });
     this.localId = null;
     this.world.localId = null;
@@ -141,6 +154,9 @@ class Game {
   startSolo(cfg) {
     this.teardownNet();
     this.brains.clear();
+    // Apply the Parlor seed here rather than when the round starts, so the
+    // attract match and menus cannot consume it first.
+    if (this.parlor.seed != null) setSeed(this.parlor.seed); else clearSeed();
     this.world = this.makeWorld(cfg.mapId, { scoreLimit: cfg.scoreLimit });
     this.localId = 1;
     this.world.localId = 1;
@@ -159,6 +175,8 @@ class Game {
     this.audio.init();
     if (this.settings.music) this.audio.startMusic();
     this.lastCfg = { ...cfg, kind: 'solo' };
+    // gameplay has started: publish the opening score
+    this.parlor.reportScore(this.parlorScore(), true);
   }
 
   // ------------------------------------------------------------------
@@ -326,8 +344,58 @@ class Game {
     if (this.state === 'results') return;
     this.state = 'results';
     this.audio.setJet(false);
+    // Definitive end of the run: final score, then submit the game over once.
+    this.parlor.finish(this.parlorScore());
     const { won } = this.ui.showResults(this.world, this.localId);
     this.audio.play(won ? 'victory' : 'defeat');
+  }
+
+  // ------------------------------------------------------------------
+  // Parlor host interface
+  // ------------------------------------------------------------------
+
+  /** Register with Parlor once, after the game is fully constructed. */
+  initParlor() {
+    if (this.parlor.init()) console.info('[parlor] integration active');
+  }
+
+  /** The native score: eliminations in the current match. */
+  parlorScore() {
+    const me = this.world?.localFighter;
+    return me ? me.kills : 0;
+  }
+
+  /**
+   * Reset to a fresh run on this seed. With autoStart we drop straight into
+   * gameplay; otherwise the normal title screen flow runs and the existing
+   * Play action starts the match.
+   */
+  parlorStartRun(seed, autoStart) {
+    this.teardownNet();
+    this.ui.hideResults();
+    this.ui.setPause(false);
+    this.ui.showConnecting(false);
+    this.paused = false;
+
+    if (!autoStart) {
+      this.state = 'menu';
+      this.ui.show('menu');
+      this.startDemo();
+      return;
+    }
+    this.startSolo({ ...COMPETITIVE_RUN, heroId: this.ui.heroId });
+  }
+
+  /** Parlor ended the round: stop gameplay and show the final standings. */
+  parlorStopRun() {
+    this.audio.setJet(false);
+    if (!this.world || this.state !== 'playing') return;
+    this.world.over = true;
+    this.world.winner = this.world._leader();
+    this.paused = false;
+    this.ui.setPause(false);
+    this.resultsTimer = 0;
+    this.finishMatch();
   }
 
   // ------------------------------------------------------------------
@@ -378,7 +446,7 @@ class Game {
       if (this.demoSwitch <= 0 || !this.demoFocus?.alive) {
         const alive = world.fighters.filter((f) => f.alive);
         this.demoFocus = alive.length ? pick(alive) : world.fighters[0];
-        this.demoSwitch = 5 + Math.random() * 4;
+        this.demoSwitch = 5 + rand(0, 4);
       }
     }
     const aimBias = !demo && focus ? { x: focus.input.aimX, y: focus.input.aimY } : null;
@@ -439,6 +507,8 @@ class Game {
     }
 
     const me = world.localFighter;
+    if (!demo && me) this.parlor.reportScore(me.kills);
+
     this.audio.setJet(
       !!me && me.thrusting && !demo,
       !!me && me.ability.active > 0 && me.ability.def.id === 'afterburn',
@@ -476,4 +546,7 @@ class Game {
 }
 
 const game = new Game();
+// Registered after construction so a synchronous onRoundStart can safely
+// reach a fully built game.
+game.initParlor();
 window.__neonMilitia = game;   // handy for debugging from the console

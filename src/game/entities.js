@@ -2,6 +2,7 @@
 // their update loop because collision needs the full fighter list.
 
 import { WEAPONS } from './weapons.js';
+import { random } from '../core/math.js';
 
 let nextId = 1;
 export const freshId = () => nextId++;
@@ -77,7 +78,7 @@ export class Pickup {
     this.amount = opts.amount || 0;
     this.active = true;
     this.timer = 0;
-    this.bob = Math.random() * Math.PI * 2;
+    this.bob = random() * Math.PI * 2;
     this.spin = 0;
     this.radius = PICKUP_KINDS[kind].radius;
     this.requested = 0;

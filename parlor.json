@@ -1,0 +1,9 @@
+{
+  "scoreIdentifier": "kills",
+  "scoreName": "Eliminations",
+  "ordering": "HIGHER_IS_BETTER",
+  "roundSeconds": 300,
+  "mode": "SINGLE",
+  "minParticipants": 1,
+  "maxParticipants": 1
+}

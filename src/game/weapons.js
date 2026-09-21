@@ -1,3 +1,5 @@
+import { random } from '../core/math.js';
+
 // Weapon definitions. `kind` selects how a shot is resolved:
 //   bullet     - travelling projectile, straight line, dies on impact
 //   projectile - travelling projectile affected by gravity/explodes
@@ -91,7 +93,7 @@ export const PRIMARY_DROPS = [
   ['rail', 8], ['plasma', 9], ['rocket', 6],
 ];
 
-export function rollPrimary(rng = Math.random) {
+export function rollPrimary(rng = random) {
   const total = PRIMARY_DROPS.reduce((a, [, w]) => a + w, 0);
   let r = rng() * total;
   for (const [id, w] of PRIMARY_DROPS) {

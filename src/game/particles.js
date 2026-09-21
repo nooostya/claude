@@ -1,7 +1,7 @@
 // A flat, pooled particle system. Everything visual and non-gameplay lives
 // here: sparks, smoke, blood mist, jet exhaust, shell casings, shockwaves.
 
-import { rand, randInt, clamp } from '../core/math.js';
+import { rand, randInt, clamp, random } from '../core/math.js';
 
 const MAX = 1400;
 
@@ -136,7 +136,7 @@ export class Particles {
       this.spawn({
         x: x + rand(-2, 2), y, vx: Math.cos(a) * s, vy: Math.sin(a) * s,
         life: rand(0.1, 0.26), size: rand(2, 4.5) * power,
-        color: Math.random() < 0.4 ? '#ffffff' : color, drag: 0.1,
+        color: random() < 0.4 ? '#ffffff' : color, drag: 0.1,
       });
     }
   }

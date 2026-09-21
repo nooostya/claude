@@ -2,7 +2,7 @@
 // so bots and players go through exactly one movement/combat code path.
 
 import { BOT, TILE, COMBAT } from '../core/config.js';
-import { clamp, rand, chance, dist, angleApproach, angleDelta, lerp, pick, TAU } from '../core/math.js';
+import { clamp, rand, chance, dist, angleApproach, angleDelta, lerp, pick, random, TAU } from '../core/math.js';
 import { WEAPONS } from './weapons.js';
 import { blankInput } from './fighter.js';
 
@@ -269,7 +269,7 @@ export function botNames(n, taken = []) {
   const out = [];
   for (let i = 0; i < n; i++) {
     if (pool.length === 0) { out.push(`BOT-${i + 1}`); continue; }
-    out.push(pool.splice((Math.random() * pool.length) | 0, 1)[0]);
+    out.push(pool.splice((random() * pool.length) | 0, 1)[0]);
   }
   return out;
 }

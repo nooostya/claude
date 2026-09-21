@@ -95,6 +95,36 @@ modified client can still lie about its own position and health. That is a
 deliberate trade for responsiveness and simplicity; making it cheat-resistant
 would mean running the full simulation server-side and reconciling inputs.
 
+## Parlor
+
+The game runs on [Parlor](https://parlor.games) as a single-player competitive
+round, and is unchanged when `window.Parlor` is absent — the title screen flow
+takes over and every SDK call becomes a no-op.
+
+```sh
+npm run build     # -> dist/ and neon-militia-parlor.zip (upload this)
+```
+
+The build copies only what the game needs at runtime, then refuses to produce a
+ZIP if `parlor.json` is invalid, if anything references a CDN or external asset,
+or if a relative asset path does not resolve.
+
+- **Score** is eliminations, reported in the game's own unit, higher is better.
+- **Round length** is the game's native five-minute match clock
+  (`roundSeconds: 300`); no timer was invented for Parlor.
+- **The seed** drives every gameplay roll — arena choice, bot roster, spawn
+  selection, weapon crate contents, bot decisions — through the seeded
+  generator in `src/core/math.js`. It is applied when the match is created, not
+  when the round starts, so the attract match and menus cannot consume it.
+- **`autoStart: false`** shows the normal title screen and the existing DEPLOY
+  button starts the match. Otherwise the game drops straight into a fixed
+  competitive match (5 veteran bots, first to 20) so every run is comparable.
+- **Intermediate deaths continue the run.** Only the match itself ending — score
+  limit reached or the clock running out — is a definitive completion.
+
+`src/core/parlor.js` holds the whole integration. It talks to a three-method
+host interface rather than the `Game` class, so it is unit tested without a DOM.
+
 ## Layout
 
 ```
@@ -104,7 +134,9 @@ src/game/   the simulation — characters, weapons, maps, physics, world, ai
 src/render/ camera, procedural character art, world renderer, HUD
 src/net/    multiplayer client
 src/ui/     menu screens
+src/core/parlor.js  Parlor integration (inert when window.Parlor is absent)
 server/     static + WebSocket server, and a dependency-free RFC 6455 codec
+tools/      build script for the Parlor upload
 test/       headless tests
 ```
 
@@ -120,7 +152,9 @@ npm test
 Covers arena geometry (no spawn buried in a wall, no gap in the border), full
 60-second bot matches on every map checked for NaNs, stuck fighters and
 projectile leaks, every weapon and every ability exercised, the local/online
-authority split, and the WebSocket codec against the RFC 6455 handshake vector.
+authority split, the WebSocket codec against the RFC 6455 handshake vector, and the Parlor
+lifecycle (both autoStart paths, score reporting, idempotent finalization,
+platform-forced end, and seed reproducibility).
 
 ## Extending it
 
