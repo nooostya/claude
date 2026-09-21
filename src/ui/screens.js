@@ -4,7 +4,7 @@
 import { HEROES, getHero } from '../game/characters.js';
 import { mapList } from '../game/maps.js';
 import { WEAPONS } from '../game/weapons.js';
-import { DIFFICULTIES } from '../game/ai.js';
+import { DIFFICULTIES, DEFAULT_DIFFICULTY } from '../game/ai.js';
 import { drawHeroPortrait } from '../render/heroart.js';
 
 const $ = (sel) => document.querySelector(sel);
@@ -112,7 +112,7 @@ export class UI {
       const o = document.createElement('option');
       o.value = d.id;
       o.textContent = d.name;
-      if (d.id === 'soldier') o.selected = true;
+      if (d.id === DEFAULT_DIFFICULTY) o.selected = true;
       diffSel.append(o);
     }
 

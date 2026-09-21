@@ -428,6 +428,11 @@ export class World {
   // ------------------------------------------------------------------
   damage(target, amount, info = {}) {
     if (!target.alive || this.over || amount <= 0) return 0;
+
+    // Difficulty scales what bots deal, not what their weapons are worth.
+    const source = info.byId != null ? this.fighterById(info.byId) : null;
+    if (source && source.id !== target.id) amount *= source.outgoingDamageScale ?? 1;
+
     const mul = target.damageMultiplierFrom(info.x ?? target.x, info.y ?? target.y);
     if (mul <= 0) {
       this.emit({ type: 'blocked', x: target.x, y: target.y, id: target.id });
@@ -458,8 +463,7 @@ export class World {
       target.vy += Math.sin(a) * k - (info.blast ? 90 : 40);
     }
 
-    const attacker = info.byId != null ? this.fighterById(info.byId) : null;
-    if (attacker && attacker.id !== target.id) attacker.damageDealt += dealt;
+    if (source && source.id !== target.id) source.damageDealt += dealt;
 
     this.emit({
       type: 'hit', x: info.x ?? target.x, y: info.y ?? target.y,

@@ -19,6 +19,35 @@ export const DEFAULT_BINDINGS = {
   mute: ['KeyM'],
 };
 
+/**
+ * Touch action buttons.
+ *
+ * They must stay clear of the two thumb zones in the lower corners: a button
+ * sitting under a resting thumb steals the virtual stick, which has broken
+ * the controls once per orientation already.
+ */
+export function touchButtonLayout(cw, ch) {
+  const s = Math.max(0.68, Math.min(1, Math.min(cw, ch) / 620));
+  const r = 27 * s;
+  const right = cw - 42 * s;
+  const portrait = ch > cw;
+  // Landscape: an upper band. Portrait: mid-screen, above where thumbs rest.
+  const top = portrait ? ch * 0.54 : Math.max(96, ch * 0.30);
+  return [
+    { id: 'ability', label: 'Q', x: right, y: top, r: r * 1.16 },
+    { id: 'melee', label: 'F', x: right - 62 * s, y: top - 26 * s, r },
+    { id: 'grenade', label: 'G', x: right, y: top + 68 * s, r },
+    { id: 'reload', label: 'R', x: right - 62 * s, y: top + 44 * s, r: r * 0.9 },
+    { id: 'swap', label: 'E', x: 46 * s, y: top, r: r * 0.9 },
+  ];
+}
+
+/** Where a thumb rests for each virtual stick, as a fraction of the screen. */
+export const THUMB_ZONES = (cw, ch) => [
+  { x0: 0, x1: cw * 0.45, y0: ch * 0.66, y1: ch },          // move stick
+  { x0: cw * 0.55, x1: cw, y0: ch * 0.66, y1: ch },         // aim stick
+];
+
 export class Input {
   constructor(canvas) {
     this.canvas = canvas;
@@ -145,23 +174,8 @@ export class Input {
     addEventListener('gamepaddisconnected', () => { this.gamepadIndex = null; });
   }
 
-  /**
-   * Touch action buttons. They sit in the upper-middle band of each edge so
-   * the bottom corners stay free for the two thumb sticks — a button under a
-   * resting thumb makes the sticks unusable on a phone.
-   */
   buttonLayout(cw, ch) {
-    const s = Math.max(0.68, Math.min(1, Math.min(cw, ch) / 620));
-    const r = 27 * s;
-    const right = cw - 42 * s;
-    const top = Math.max(96, ch * 0.30);
-    return [
-      { id: 'ability', label: 'Q', x: right, y: top, r: r * 1.16 },
-      { id: 'melee', label: 'F', x: right - 62 * s, y: top - 26 * s, r },
-      { id: 'grenade', label: 'G', x: right, y: top + 68 * s, r },
-      { id: 'reload', label: 'R', x: right - 62 * s, y: top + 44 * s, r: r * 0.9 },
-      { id: 'swap', label: 'E', x: 46 * s, y: top, r: r * 0.9 },
-    ];
+    return touchButtonLayout(cw, ch);
   }
 
   _buttonAt(x, y, cw, ch) {

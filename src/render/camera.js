@@ -10,12 +10,19 @@ export class Camera {
     this.viewW = RENDER.baseWidth;
     this.viewH = RENDER.baseHeight;
     this.dpr = 1;
+    this.portrait = false;
     this.snapNext = true;
   }
 
   resize(cw, ch, dpr = 1) {
     this.dpr = dpr;
-    this.zoom = clamp(Math.min(cw / RENDER.baseWidth, ch / RENDER.baseHeight), RENDER.minZoom, RENDER.maxZoom);
+    this.portrait = ch > cw;
+    // On a tall screen, fitting the landscape frame would zoom out to nothing.
+    // Drive the zoom from width instead and let the extra height show more of
+    // the arena vertically.
+    this.zoom = this.portrait
+      ? clamp(cw / RENDER.portraitWorldWidth, RENDER.minZoom, RENDER.maxZoom)
+      : clamp(Math.min(cw / RENDER.baseWidth, ch / RENDER.baseHeight), RENDER.minZoom, RENDER.maxZoom);
     this.viewW = cw / this.zoom;
     this.viewH = ch / this.zoom;
   }

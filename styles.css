@@ -17,6 +17,7 @@
 
 html, body {
   height: 100%;
+  height: 100dvh;
   background: var(--bg);
   color: var(--ink);
   font-family: var(--body);
@@ -26,7 +27,14 @@ html, body {
   -webkit-tap-highlight-color: transparent;
 }
 
-#app { position: fixed; inset: 0; }
+#app {
+  position: fixed;
+  inset: 0;
+  background: var(--bg);
+  /* keep the canvas clear of notches and rounded corners */
+  padding: env(safe-area-inset-top) env(safe-area-inset-right)
+           env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
 
 #game {
   position: absolute;
@@ -370,57 +378,181 @@ body.menu #game { cursor: default; }
   z-index: 40;
 }
 
-/* ------------------------------------------------------- responsive */
-@media (max-width: 860px) {
-  .loadout { grid-template-columns: 1fr; }
-  .hero-grid { grid-template-columns: repeat(3, 1fr); max-height: 33vh; }
-  .hero-card canvas { width: 62px; height: 62px; }
-  /* Keep the portrait beside the stats so the ability card stays above the
-     fold — on a phone that card is the whole reason to read this screen. */
-  .hero-detail { grid-template-columns: 120px 1fr; align-items: start; padding: 12px; }
-  #hero-stage { width: 120px; height: 120px; }
-  .hero-blurb { display: none; }
-  .stat { grid-template-columns: 58px 1fr 34px; font-size: 10px; }
-  .stats { gap: 4px; margin-bottom: 10px; }
-  .ability-card { grid-column: 1 / -1; }
-  .sidearm { grid-column: 1 / -1; margin-top: 8px; font-size: 11px; }
-}
-@media (max-width: 560px) {
-  .hero-grid { grid-template-columns: repeat(3, 1fr); gap: 6px; }
+/* =========================================================== responsive
+   Phones are the hard case, and the trap is that a landscape phone is WIDE
+   (844x390) — width-only breakpoints hand it the desktop layout at a 390px
+   height. Every compact rule below therefore triggers on short viewports too.
+   ====================================================================== */
+
+/* Centred screens: when content is taller than the viewport, `justify-content:
+   center` pushes the top out of reach and it cannot be scrolled back. The auto
+   margins centre when there is room and pin to the top when there is not. */
+.screen.center { justify-content: flex-start; }
+.screen.center > :first-child { margin-top: auto; }
+.screen.center > :last-child { margin-bottom: auto; }
+
+/* --- narrow OR short: the compact layout --- */
+@media (max-width: 860px), (max-height: 600px) {
+  .screen { padding: clamp(8px, 2vh, 20px) clamp(10px, 3vw, 28px); gap: 10px; }
+  .bar h2 { font-size: clamp(12px, 2.6vw, 17px); }
+
+  .loadout { grid-template-columns: 1fr; gap: 10px; }
+
+  /* Portrait has vertical room, so the roster wraps rather than scrolling. */
+  .hero-grid {
+    grid-template-columns: repeat(3, 1fr);
+    grid-auto-flow: row;
+    overflow-x: visible;
+    max-height: none;
+    gap: 8px;
+  }
+  .hero-card { padding: 6px; }
+  .hero-card canvas { width: 58px; height: 58px; }
+  .hero-card .hc-name { font-size: 11px; }
   .hero-card .hc-title { display: none; }
+  .hero-card.selected::after { display: none; }
+
+  .hero-detail {
+    grid-template-columns: 104px 1fr;
+    align-items: start;
+    padding: 10px 12px;
+    gap: 12px;
+  }
+  #hero-stage { width: 104px; height: 104px; }
+  .hero-info h3 { font-size: 20px; }
+  .hero-blurb { display: none; }
+  .stats { gap: 4px; margin-bottom: 8px; }
+  .stat { grid-template-columns: 56px 1fr 34px; font-size: 10px; }
+  .ability-card { grid-column: 1 / -1; padding: 7px 10px; }
+  .ability-card p { font-size: 11.5px; }
+  .sidearm { grid-column: 1 / -1; margin-top: 6px; font-size: 11px; }
+
   .setup { gap: 8px; }
-  .field { min-width: 108px; }
+  .field { min-width: 104px; }
+  .field > span { font-size: 8.5px; }
+  .field select, .field input { padding: 7px 9px; font-size: 13px; }
 }
-@media (max-height: 560px) {
-  .logo { margin-bottom: 14px; }
+
+/* --- short: menus have to give up vertical room --- */
+@media (max-height: 600px) {
+  /* no vertical room to wrap into, so the roster becomes a scrolling strip */
+  .hero-grid {
+    grid-template-columns: none;
+    grid-auto-flow: column;
+    grid-auto-columns: 94px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    gap: 8px;
+    padding-bottom: 4px;
+    scroll-snap-type: x proximity;
+  }
+  .hero-card { scroll-snap-align: start; }
+
+  .logo { margin-bottom: 10px; }
+  .menu-buttons { width: min(340px, 74vw); gap: 8px; }
+  .btn { padding: 10px 15px; font-size: 13px; }
+  .btn .btn-sub { font-size: 10px; }
+  .menu-footer { margin-top: 12px; gap: 8px; }
+  .chip { padding: 6px 12px; font-size: 10px; }
+  .panel { padding: 14px 18px; gap: 9px; }
+  .panel h2 { font-size: clamp(15px, 3vw, 22px); }
+  #results-table { max-height: 46vh; overflow-y: auto; }
+  .res-row { padding: 5px 9px; font-size: 12px; }
+  .controls-grid { grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; }
+  .control-col { padding: 11px 13px; }
+  .control-col dl { font-size: 12px; gap: 4px 10px; }
+  .control-col p { font-size: 12px; }
+}
+
+/* --- very short (landscape phone) --- */
+@media (max-height: 460px) {
+  .screen { padding: 6px 12px; gap: 7px; }
   .tagline { display: none; }
-  .hero-grid { max-height: 30vh; }
+  .logo { margin-bottom: 6px; }
+  .menu-buttons { gap: 6px; }
+  .btn { padding: 8px 13px; font-size: 12px; }
+  .btn .btn-sub { display: none; }
+  .menu-footer { margin-top: 9px; }
+  .hero-grid { grid-auto-columns: 76px; gap: 6px; }
+  .hero-card .hc-title { display: none; }
+  .hero-card canvas { width: 46px; height: 46px; }
+  .hero-card .hc-name { font-size: 9.5px; }
+  .hero-detail { grid-template-columns: 84px 1fr; padding: 8px 10px; gap: 10px; }
+  #hero-stage { width: 84px; height: 84px; }
+  .hero-info h3 { font-size: 17px; }
+  .hero-title { font-size: 9px; }
+  .stat { font-size: 9px; grid-template-columns: 50px 1fr 30px; }
+  /* A landscape phone is short but wide: put the ability beside the stats
+     instead of below them, so nothing has to scroll. */
+  .hero-info {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
+    column-gap: 12px;
+    row-gap: 2px;
+    align-content: start;
+  }
+  .hero-info h3 { grid-column: 1; grid-row: 1; }
+  .hero-title { grid-column: 1; grid-row: 2; }
+  .stats { grid-column: 1; grid-row: 3; margin-bottom: 0; }
+  .ability-card { grid-column: 2; grid-row: 1 / 4; align-self: center; padding: 6px 9px; }
+  .ability-head strong { font-size: 12px; }
+  .ability-card p { font-size: 10.5px; }
+  .sidearm { display: none; }
+  .field select, .field input { padding: 5px 8px; font-size: 12px; }
+  .hint { display: none; }
 }
+
+/* --- narrow portrait --- */
+@media (max-width: 560px) {
+  .hero-grid { grid-auto-columns: 80px; }
+  .hero-card .hc-title { display: none; }
+  .setup { gap: 7px; }
+  .field { min-width: 0; flex: 1 1 44%; }
+  .field.wide { flex: 1 1 100%; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .btn, .hero-card { transition: none; }
   .spinner { animation-duration: 2s; }
 }
 
-/* ------------------------------------------------------- portrait hint */
+/* ==================================================== orientation hint
+   A suggestion, not a gate: a phone with rotation locked must still be able
+   to play, so this is a dismissible banner rather than a full-screen block.
+   ====================================================================== */
 #rotate-hint {
   position: absolute;
-  inset: 0;
-  z-index: 60;
+  left: 50%;
+  top: calc(12px + env(safe-area-inset-top));
+  transform: translateX(-50%);
+  z-index: 55;
   display: flex;
-  flex-direction: column;
   align-items: center;
-  justify-content: center;
   gap: 10px;
-  text-align: center;
-  padding: 24px;
-  background: rgba(5, 7, 16, 0.94);
+  max-width: min(92vw, 420px);
+  padding: 9px 10px 9px 14px;
+  border-radius: 999px;
+  background: rgba(9, 13, 26, 0.93);
+  border: 1px solid rgba(124, 224, 255, 0.28);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.5);
 }
 #rotate-hint .rotate-icon {
-  font-size: 54px;
+  font-size: 19px;
   color: var(--cyan);
   animation: rock 2.4s ease-in-out infinite;
 }
-#rotate-hint p { font-family: var(--display); letter-spacing: 0.1em; font-size: 15px; }
-#rotate-hint span { color: var(--ink-dim); font-size: 12px; letter-spacing: 0.08em; }
+#rotate-hint p { font-size: 12.5px; letter-spacing: 0.04em; color: var(--ink); }
+#rotate-hint button {
+  flex: none;
+  width: 26px; height: 26px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--ink-dim);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+#rotate-hint button:hover { color: var(--ink); border-color: var(--cyan); }
 @keyframes rock { 0%, 100% { transform: rotate(-12deg); } 50% { transform: rotate(12deg); } }
 @media (prefers-reduced-motion: reduce) { #rotate-hint .rotate-icon { animation: none; } }

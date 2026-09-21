@@ -72,6 +72,10 @@ export class Fighter {
     this.cloak = 0;        // 0 = visible, 1 = fully cloaked
     this.burnTick = 0;
 
+    // Scaled down for low-difficulty bots so the weapon tables stay honest.
+    this.outgoingDamageScale = 1;
+    this.brain = null;
+
     this.kills = 0;
     this.deaths = 0;
     this.streak = 0;

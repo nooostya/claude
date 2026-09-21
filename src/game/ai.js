@@ -14,17 +14,24 @@ const IDEAL_RANGE = {
 };
 
 export const DIFFICULTIES = [
-  { id: 'recruit', name: 'Recruit', value: 0.15 },
-  { id: 'soldier', name: 'Soldier', value: 0.45 },
-  { id: 'veteran', name: 'Veteran', value: 0.7 },
-  { id: 'elite', name: 'Elite', value: 0.88 },
+  { id: 'recruit', name: 'Recruit', value: 0 },
+  { id: 'soldier', name: 'Soldier', value: 0.3 },
+  { id: 'veteran', name: 'Veteran', value: 0.58 },
+  { id: 'elite', name: 'Elite', value: 0.82 },
   { id: 'nightmare', name: 'Nightmare', value: 1 },
 ];
+
+/** The tier a new player gets, and the one competitive runs are fixed to. */
+export const DEFAULT_DIFFICULTY = 'soldier';
 
 export class BotBrain {
   constructor(fighter, difficulty = 0.6) {
     this.f = fighter;
     this.d = clamp(difficulty, 0, 1);
+    // Bots deal less damage at low difficulty. Applied by World.damage so the
+    // weapon tables stay honest.
+    fighter.outgoingDamageScale = this.lerpD(BOT.damageScale);
+    fighter.brain = this;              // lets other brains see who is targeting whom
     this.input = blankInput();
     this.think = 0;
     this.target = null;
@@ -37,11 +44,17 @@ export class BotBrain {
     this.panic = 0;
     this.grenadeTimer = rand(3, 9);
     this.wanderX = fighter.x;
+    this.firing = false;
+    this.burstClock = rand(0, 0.4);
   }
 
-  get reaction() { return lerp(BOT.reactionTime[0], BOT.reactionTime[1], 1 - this.d); }
-  get aimError() { return lerp(BOT.aimError[1], BOT.aimError[0], this.d); }
-  get aimSpeed() { return lerp(BOT.aimSpeed[0], BOT.aimSpeed[1], this.d); }
+  /** Interpolate a [hardest, easiest] pair at this bot's difficulty. */
+  lerpD([hard, easy]) { return lerp(easy, hard, this.d); }
+
+  get reaction() { return this.lerpD(BOT.reactionTime); }
+  get aimError() { return this.lerpD(BOT.aimError); }
+  get aimSpeed() { return this.lerpD(BOT.aimSpeed); }
+  get focusLimit() { return Math.round(this.lerpD(BOT.focusLimit)); }
 
   update(dt, world) {
     const f = this.f;
@@ -90,6 +103,9 @@ export class BotBrain {
       let score = d + (blocked ? 900 : 0);
       if (o.id === f.lastHitBy && world.time - f.lastHitAt < 4) score -= 700;
       if (o.health < o.maxHealth * 0.35) score -= 250;
+      // Being swarmed is what makes a match feel unfair, so past a limit the
+      // bots prefer to fight each other instead of the player.
+      if (!o.isBot && countHunters(world, o, this) >= this.focusLimit) score += 1400;
       if (score < bestScore) { bestScore = score; best = o; }
     }
     if (best !== this.target) this.reactTimer = this.reaction;
@@ -216,6 +232,7 @@ export class BotBrain {
     }
 
     if (!tgt || !visible || this.reactTimer > 0) {
+      this.firing = false;
       this._ability(world, tgt, visible, false);
       return;
     }
@@ -227,8 +244,17 @@ export class BotBrain {
     if (d < COMBAT.meleeRange * 0.85 && f.meleeTimer <= 0 && chance(0.5 + this.d * 0.4)) {
       inp.melee = true;
     }
-    if (err < tolerance && a.mag > 0 && a.reloading <= 0) {
-      inp.fire = w.auto ? true : chance(0.55 + this.d * 0.4);
+    // Burst discipline. Without this an automatic weapon is simply held down
+    // whenever the aim is on target, which makes every difficulty feel the same.
+    this.burstClock -= dt;
+    if (this.burstClock <= 0) {
+      this.firing = !this.firing;
+      const window = this.firing ? this.lerpD(BOT.burstOn) : this.lerpD(BOT.burstOff);
+      this.burstClock = window * rand(0.75, 1.3);
+    }
+    const onTarget = err < tolerance && a.mag > 0 && a.reloading <= 0;
+    if (onTarget && this.firing) {
+      inp.fire = w.auto ? true : chance(0.5 + this.d * 0.45);
     }
     if (this.grenadeTimer <= 0 && f.grenades > 0 && d > 180 && d < 640 && chance(0.4)) {
       inp.grenade = true;
@@ -255,6 +281,16 @@ export class BotBrain {
     }
     if (want) this.input.ability = true;
   }
+}
+
+/** How many other bots are currently hunting this fighter. */
+function countHunters(world, victim, self) {
+  let n = 0;
+  for (const o of world.fighters) {
+    if (o === victim || o.brain === self || !o.brain) continue;
+    if (o.alive && o.brain.target === victim) n++;
+  }
+  return n;
 }
 
 /** Pool of bot callsigns, so a match roster reads like a match roster. */

@@ -61,8 +61,9 @@ export const MATCH = {
 export const RENDER = {
   baseWidth: 1060,       // virtual viewport the camera frames
   baseHeight: 600,
-  minZoom: 0.70,
+  minZoom: 0.55,
   maxZoom: 1.65,
+  portraitWorldWidth: 560,   // world px to keep visible on a tall screen
   cameraLag: 0.0008,     // fraction remaining after 1s
   shakeDecay: 0.0009,
   maxShake: 26,
@@ -76,9 +77,17 @@ export const NET = {
   defaultPort: 8080,
 };
 
+// Bot tuning. Every pair is [at the hardest difficulty, at the easiest], and
+// is interpolated by the difficulty value. Difficulty has to move several
+// axes at once: nudging aim error alone barely changes how dangerous a bot
+// feels, because a bot holding an automatic weapon on target still hits.
 export const BOT = {
-  reactionTime: [0.12, 0.34],
-  aimError: [0.02, 0.10],   // radians, by difficulty
-  aimSpeed: [7, 14],
+  reactionTime: [0.10, 0.85],   // delay before engaging a new target
+  aimError: [0.015, 0.19],      // radians of persistent aim wobble
+  aimSpeed: [15, 2.6],          // how fast the aim tracks a moving target
+  burstOn: [1.8, 0.22],         // seconds of held trigger per burst
+  burstOff: [0.10, 1.05],       // pause between bursts
+  damageScale: [1.0, 0.5],      // multiplier on damage the bot deals
+  focusLimit: [6, 1],           // bots allowed to hunt the player at once
   thinkInterval: 0.1,
 };

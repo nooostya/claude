@@ -7,7 +7,7 @@ import { Input } from './core/input.js';
 import { Audio, playEvents } from './core/audio.js';
 import { World } from './game/world.js';
 import { buildMap, mapList } from './game/maps.js';
-import { BotBrain, botNames, DIFFICULTIES } from './game/ai.js';
+import { BotBrain, botNames, DIFFICULTIES, DEFAULT_DIFFICULTY } from './game/ai.js';
 import { HEROES, getHero } from './game/characters.js';
 import { blankInput } from './game/fighter.js';
 import { Camera } from './render/camera.js';
@@ -22,7 +22,7 @@ import { ParlorBridge } from './core/parlor.js';
 const COMPETITIVE_RUN = {
   mapId: 'random',
   bots: 5,
-  difficulty: 'veteran',
+  difficulty: DEFAULT_DIFFICULTY,
   scoreLimit: MATCH.scoreLimit,
   name: 'YOU',
 };
@@ -59,6 +59,9 @@ class Game {
 
     this.resize();
     addEventListener('resize', () => { this.resize(); this.checkOrientation(); });
+    // Mobile browsers resize the visual viewport without firing `resize`
+    // when the toolbar collapses.
+    visualViewport?.addEventListener('resize', () => { this.resize(); this.checkOrientation(); });
     addEventListener('orientationchange', () => setTimeout(() => { this.resize(); this.checkOrientation(); }, 250));
     document.addEventListener('visibilitychange', () => {
       if (document.hidden && this.state === 'playing' && !this.isOnline) this.setPaused(true);
@@ -76,23 +79,39 @@ class Game {
   // ------------------------------------------------------------------
   resize() {
     const dpr = clamp(devicePixelRatio || 1, 1, 2);
-    this.cw = Math.floor(innerWidth);
-    this.ch = Math.floor(innerHeight);
+    // Measure the laid-out box rather than innerWidth/innerHeight: that is
+    // what the canvas actually occupies once safe-area padding is applied,
+    // and it stays correct while a mobile browser toolbar slides away.
+    const host = this.canvas.parentElement || document.documentElement;
+    this.cw = Math.max(1, Math.floor(host.clientWidth || innerWidth));
+    this.ch = Math.max(1, Math.floor(host.clientHeight || innerHeight));
     this.canvas.width = Math.floor(this.cw * dpr);
     this.canvas.height = Math.floor(this.ch * dpr);
-    this.canvas.style.width = this.cw + 'px';
-    this.canvas.style.height = this.ch + 'px';
+    this.canvas.style.width = '100%';
+    this.canvas.style.height = '100%';
     this.dpr = dpr;
     this.camera.resize(this.cw, this.ch, dpr);
   }
 
-  /** Phones in portrait get a nudge: the arena is wide, the screen is not. */
+  /**
+   * Portrait is fully playable, so this is only a nudge. It is dismissible and
+   * stays dismissed, because a phone with rotation locked cannot act on it.
+   */
   checkOrientation() {
     const hint = document.getElementById('rotate-hint');
     if (!hint) return;
     const isPhone = matchMedia('(pointer: coarse)').matches;
-    const portrait = innerHeight > innerWidth;
-    hint.classList.toggle('hidden', !(isPhone && portrait && Math.min(innerWidth, innerHeight) < 560));
+    const portrait = this.ch > this.cw;
+    // Advisory only, and never over a live match where it would sit on the HUD.
+    const show = isPhone && portrait && this.state !== 'playing'
+      && Math.min(this.cw, this.ch) < 620
+      && localStorage.getItem('nm.rotateHint') !== 'off';
+    hint.classList.toggle('hidden', !show);
+  }
+
+  dismissRotateHint() {
+    try { localStorage.setItem('nm.rotateHint', 'off'); } catch { /* private mode */ }
+    document.getElementById('rotate-hint')?.classList.add('hidden');
   }
 
   // ------------------------------------------------------------------
@@ -170,6 +189,7 @@ class Game {
     this.paused = false;
     this.ui.show('game');
     this.ui.hideResults();
+    this.checkOrientation();
     this.ui.setPause(false);
     this.hud.setToast(`${this.world.map.name.toUpperCase()} · FIRST TO ${cfg.scoreLimit}`, 3);
     this.audio.init();
@@ -252,6 +272,7 @@ class Game {
     this.paused = false;
     this.ui.show('game');
     this.ui.setPause(false);
+    this.checkOrientation();
     this.hud.setToast(isReset ? 'NEW MATCH' : `ONLINE · ${this.world.map.name.toUpperCase()}`, 3);
     this.audio.init();
     if (this.settings.music) this.audio.startMusic();
@@ -274,6 +295,7 @@ class Game {
       case 'restart': this.setPaused(false); this.restart(); break;
       case 'quit': this.quitToMenu(); break;
       case 'rematch': this.ui.hideResults(); this.restart(); break;
+      case 'dismiss-rotate': this.dismissRotateHint(); break;
       case 'cancel-connect':
         this.teardownNet();
         this.ui.showConnecting(false);
@@ -331,6 +353,7 @@ class Game {
     this.ui.show('menu');
     this.audio.setJet(false);
     this.startDemo();
+    this.checkOrientation();
   }
 
   setPaused(on) {
@@ -381,6 +404,7 @@ class Game {
       this.state = 'menu';
       this.ui.show('menu');
       this.startDemo();
+      this.checkOrientation();
       return;
     }
     this.startSolo({ ...COMPETITIVE_RUN, heroId: this.ui.heroId });

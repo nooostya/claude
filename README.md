@@ -39,7 +39,8 @@ game is ES modules, which browsers refuse to load over `file://`.
 
 **Touch**: left half of the screen is a move stick (push up to fly, down to drop
 through), right half is an aim stick that fires past halfway, with action
-buttons up the right edge. **Gamepad**: left stick moves, right stick aims and
+buttons clear of both thumb zones. Landscape and portrait are both supported —
+landscape shows more of the arena, so portrait gets a dismissible nudge. **Gamepad**: left stick moves, right stick aims and
 fires, `A`/LT is the jetpack, `Y` the ability.
 
 Three things are worth knowing before your first match:
@@ -166,6 +167,22 @@ platform-forced end, and seed reproducibility).
 - **A new arena**: add a rect-based definition to `src/game/maps.js`. The tests
   will tell you if a spawn or pickup ended up inside geometry.
 - **Balance**: almost every feel-related number lives in `src/core/config.js`.
+  Bot difficulty moves seven axes at once (`BOT` in that file) — aim error,
+  tracking speed, reaction, burst length, burst pause, damage dealt, and how
+  many bots may hunt the player at once. Each is a `[hardest, easiest]` pair.
+  Tuning only one of them does almost nothing: a bot holding an automatic
+  weapon on target still hits, which is why the old difficulty slider barely
+  changed anything.
+
+## Responsive layout
+
+The trap is that a landscape phone is **wide** (844x390), so width-only
+breakpoints hand it the desktop layout at a 390px height. Every compact rule in
+`styles.css` therefore triggers on short viewports as well as narrow ones, and
+the roster switches between a wrapped grid (tall screens) and a scrolling strip
+(short ones). The canvas is measured from its laid-out box rather than
+`innerWidth`/`innerHeight` so it stays correct inside safe-area padding and
+while a mobile toolbar slides away.
 
 ## Licence
 
