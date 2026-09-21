@@ -457,7 +457,7 @@ class Game {
 
     if (this.state === 'menu') {
       // dim the attract match so the menu stays readable
-      ctx.fillStyle = 'rgba(6,8,18,0.42)';
+      ctx.fillStyle = 'rgba(6,8,18,0.18)';
       ctx.fillRect(0, 0, this.cw, this.ch);
       return;
     }

@@ -59,6 +59,14 @@ body.menu #game { cursor: default; }
   overflow-y: auto;
 }
 .screen.center { align-items: center; justify-content: center; }
+/* The main menu sits over a live bot match, so it stays lighter than the
+   other screens — the fight behind it is part of the attract screen. */
+#screen-menu {
+  background:
+    radial-gradient(130% 100% at 50% 0%, rgba(18, 28, 60, 0.55), rgba(5, 7, 16, 0.86) 72%);
+  backdrop-filter: blur(2.5px);
+  -webkit-backdrop-filter: blur(2.5px);
+}
 .screen.overlay { background: rgba(4, 6, 14, 0.78); backdrop-filter: blur(4px); }
 
 /* ------------------------------------------------------- title */
