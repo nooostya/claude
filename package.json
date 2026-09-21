@@ -1,0 +1,15 @@
+{
+  "name": "neon-militia",
+  "version": "1.0.0",
+  "description": "A 2D jetpack deathmatch shooter in the spirit of Mini Militia, with six distinct heroes. Runs in the browser; ships a zero-dependency multiplayer server.",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "node server/server.js",
+    "serve": "node server/server.js",
+    "test": "node --test test/"
+  },
+  "engines": { "node": ">=18" },
+  "keywords": ["game", "canvas", "shooter", "multiplayer", "websocket"],
+  "license": "MIT"
+}
