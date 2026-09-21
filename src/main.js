@@ -46,14 +46,15 @@ class Game {
     };
 
     this.resize();
-    addEventListener('resize', () => this.resize());
-    addEventListener('orientationchange', () => setTimeout(() => this.resize(), 250));
+    addEventListener('resize', () => { this.resize(); this.checkOrientation(); });
+    addEventListener('orientationchange', () => setTimeout(() => { this.resize(); this.checkOrientation(); }, 250));
     document.addEventListener('visibilitychange', () => {
       if (document.hidden && this.state === 'playing' && !this.isOnline) this.setPaused(true);
     });
 
     this.ui.show('menu');
     this.syncToggleChips();
+    this.checkOrientation();
     this.startDemo();
     requestAnimationFrame((t) => this.loop(t));
   }
@@ -71,6 +72,15 @@ class Game {
     this.canvas.style.height = this.ch + 'px';
     this.dpr = dpr;
     this.camera.resize(this.cw, this.ch, dpr);
+  }
+
+  /** Phones in portrait get a nudge: the arena is wide, the screen is not. */
+  checkOrientation() {
+    const hint = document.getElementById('rotate-hint');
+    if (!hint) return;
+    const isPhone = matchMedia('(pointer: coarse)').matches;
+    const portrait = innerHeight > innerWidth;
+    hint.classList.toggle('hidden', !(isPhone && portrait && Math.min(innerWidth, innerHeight) < 560));
   }
 
   // ------------------------------------------------------------------

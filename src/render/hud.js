@@ -7,9 +7,14 @@ import { SOLID } from '../game/maps.js';
 import { drawWeapon } from './heroart.js';
 
 const FONT = '"Rajdhani", "Segoe UI", system-ui, sans-serif';
-const panel = (ctx, x, y, w, h, r = 8, fill = 'rgba(9,12,24,0.66)') => {
+// HUD panels sit over arbitrarily bright arena geometry, so they need to be
+// near-opaque to stay readable.
+const panel = (ctx, x, y, w, h, r = 8, fill = 'rgba(7,10,20,0.88)') => {
   ctx.fillStyle = fill;
   ctx.beginPath(); ctx.roundRect(x, y, w, h, r); ctx.fill();
+  ctx.strokeStyle = 'rgba(160,200,255,0.12)';
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.roundRect(x + 0.5, y + 0.5, w - 1, h - 1, r); ctx.stroke();
 };
 
 export class Hud {
@@ -50,9 +55,27 @@ export class Hud {
     }
   }
 
-  draw(ctx, world, cam, cw, ch, opts = {}) {
+  /** Shrink the whole HUD on small viewports so it does not eat the screen. */
+  uiScale(cw, ch) {
+    return clamp(Math.min(cw / 1100, ch / 620), 0.6, 1);
+  }
+
+  draw(ctx, world, cam, realW, realH, opts = {}) {
     const me = world.localFighter;
-    cam.reset(ctx);
+    // Lay the HUD out in its own scaled space; every element is edge-anchored,
+    // so scaling the transform shrinks the whole thing coherently.
+    const scale = this.uiScale(realW, realH);
+    const k = cam.dpr * scale;
+    ctx.setTransform(k, 0, 0, k, 0, 0);
+    const cw = realW / scale;
+    const ch = realH / scale;
+    const toScreen = (wx, wy) => {
+      const p = cam.worldToScreen(wx, wy, realW, realH);
+      return { x: p.x / scale, y: p.y / scale };
+    };
+    const pointer = opts.pointer
+      ? { x: opts.pointer.x / scale, y: opts.pointer.y / scale }
+      : null;
     ctx.textBaseline = 'alphabetic';
 
     if (this.hitFlash > 0) {
@@ -68,8 +91,8 @@ export class Hud {
       ctx.fillRect(0, 0, cw, ch);
     }
 
-    this.drawOffscreenMarkers(ctx, world, cam, cw, ch);
-    if (me) this.drawCrosshair(ctx, me, opts.pointer, cw, ch);
+    this.drawOffscreenMarkers(ctx, world, toScreen, cw, ch);
+    if (me) this.drawCrosshair(ctx, me, pointer, cw, ch);
     this.drawTopBar(ctx, world, cw);
     if (me) this.drawPlayerPanel(ctx, me, cw, ch);
     this.drawKillFeed(ctx, world, cw);
@@ -263,7 +286,7 @@ export class Hud {
       const killer = k.killer || 'THE VOID';
       const text = `${killer}  ▸ ${weapon} ▸  ${k.victim}`;
       const w = ctx.measureText(text).width;
-      panel(ctx, cw - 18 - w - 16, y - 14, w + 16, 20, 5, 'rgba(9,12,24,0.55)');
+      panel(ctx, cw - 18 - w - 16, y - 14, w + 16, 20, 5, 'rgba(7,10,20,0.8)');
       ctx.fillStyle = '#cfe0ff';
       ctx.fillText(text, cw - 26, y);
       y += 24;
@@ -316,13 +339,13 @@ export class Hud {
   }
 
   // ---- offscreen threat markers --------------------------------------
-  drawOffscreenMarkers(ctx, world, cam, cw, ch) {
+  drawOffscreenMarkers(ctx, world, toScreen, cw, ch) {
     const me = world.localFighter;
     if (!me) return;
     const pad = 44;
     for (const f of world.fighters) {
       if (f === me || !f.alive || f.cloak > 0.5) continue;
-      const p = cam.worldToScreen(f.x, f.y, cw, ch);
+      const p = toScreen(f.x, f.y);
       if (p.x > pad && p.x < cw - pad && p.y > pad && p.y < ch - pad) continue;
       const ang = Math.atan2(f.y - me.y, f.x - me.x);
       const ex = clamp(p.x, pad, cw - pad);
@@ -341,7 +364,7 @@ export class Hud {
 
   // ---- overlays -------------------------------------------------------
   drawRespawn(ctx, me, world, cw, ch) {
-    ctx.fillStyle = 'rgba(6,8,18,0.5)';
+    ctx.fillStyle = 'rgba(6,8,18,0.66)';
     ctx.fillRect(0, 0, cw, ch);
     ctx.textAlign = 'center';
     ctx.font = `700 15px ${FONT}`;

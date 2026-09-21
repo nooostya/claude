@@ -26,7 +26,10 @@ export class Input {
     this.pressed = new Set();     // edge-triggered this frame
     this.bindings = DEFAULT_BINDINGS;
     this.mouse = { x: 0, y: 0, down: false, right: false };
-    this.touch = { enabled: false, move: null, aim: null, buttons: {} };
+    // Touches are tracked by identifier for their whole lifetime. Rebuilding
+    // the sticks from e.touches on every event lets a stick re-centre under a
+    // moving finger, which silently steals control mid-drag.
+    this.touch = { enabled: false, points: new Map(), move: null, aim: null, buttons: {} };
     this.gamepadIndex = null;
     this.pad = { move: { x: 0, y: 0 }, aim: { x: 0, y: 0 }, fire: false, buttons: {} };
     this.lastSource = 'keyboard';
@@ -44,7 +47,14 @@ export class Input {
       this.lastSource = 'keyboard';
     });
     addEventListener('keyup', (e) => this.keys.delete(e.code));
-    addEventListener('blur', () => { this.keys.clear(); this.mouse.down = false; });
+    addEventListener('blur', () => {
+      this.keys.clear();
+      this.mouse.down = false;
+      this.touch.points.clear();
+      this.touch.move = null;
+      this.touch.aim = null;
+      this.touch.buttons = {};
+    });
 
     // Canvas coordinates in CSS pixels, robust to the element being scaled.
     const toLocal = (e) => {
@@ -73,57 +83,90 @@ export class Input {
     c.addEventListener('contextmenu', (e) => e.preventDefault());
 
     // ---- touch ----
-    const handleTouch = (e) => {
+    const touchPos = (t) => {
+      const r = c.getBoundingClientRect();
+      return {
+        x: (t.clientX - r.left) * (c.clientWidth / (r.width || 1)),
+        y: (t.clientY - r.top) * (c.clientHeight / (r.height || 1)),
+      };
+    };
+
+    const claimRole = (x, y) => {
+      const btn = this._buttonAt(x, y, c.clientWidth, c.clientHeight);
+      if (btn) return { role: 'button', button: btn };
+      const preferred = x < c.clientWidth / 2 ? 'move' : 'aim';
+      const other = preferred === 'move' ? 'aim' : 'move';
+      if (!this.touch[preferred]) return { role: preferred };
+      if (!this.touch[other]) return { role: other };
+      return { role: 'ignored' };
+    };
+
+    const onStart = (e) => {
       e.preventDefault();
       this.touch.enabled = true;
       this.lastSource = 'touch';
-      const r = c.getBoundingClientRect();
-      const cw = c.clientWidth;
-      const ch = c.clientHeight;
-      const active = { move: null, aim: null, buttons: {} };
-
-      for (const t of e.touches) {
-        const x = (t.clientX - r.left) * (cw / (r.width || 1));
-        const y = (t.clientY - r.top) * (ch / (r.height || 1));
-        const btn = this._buttonAt(x, y, cw, ch);
-        if (btn) { active.buttons[btn] = true; continue; }
-        const side = x < cw / 2 ? 'move' : 'aim';
-        if (!active[side]) {
-          const existing = this.touch[side];
-          const origin = existing && existing.id === t.identifier
-            ? existing.origin
-            : { x, y };
-          active[side] = { id: t.identifier, origin, x, y };
-        }
+      for (const t of e.changedTouches) {
+        const { x, y } = touchPos(t);
+        const claim = claimRole(x, y);
+        const point = { id: t.identifier, ox: x, oy: y, x, y, ...claim };
+        this.touch.points.set(t.identifier, point);
+        if (claim.role === 'move' || claim.role === 'aim') this.touch[claim.role] = point;
+        else if (claim.role === 'button') this.touch.buttons[claim.button] = true;
       }
-      this.touch.move = active.move;
-      this.touch.aim = active.aim;
-      this.touch.buttons = active.buttons;
     };
-    for (const ev of ['touchstart', 'touchmove', 'touchend', 'touchcancel']) {
-      c.addEventListener(ev, handleTouch, { passive: false });
-    }
 
-    addEventListener('gamepadconnected', (e) => { this.gamepadIndex = e.gamepad.index; });
+    const onMove = (e) => {
+      e.preventDefault();
+      for (const t of e.changedTouches) {
+        const point = this.touch.points.get(t.identifier);
+        if (!point) continue;
+        const { x, y } = touchPos(t);
+        point.x = x; point.y = y;      // origin deliberately left alone
+      }
+    };
+
+    const onEnd = (e) => {
+      e.preventDefault();
+      for (const t of e.changedTouches) {
+        const point = this.touch.points.get(t.identifier);
+        if (!point) continue;
+        this.touch.points.delete(t.identifier);
+        if (point.role === 'button') this.touch.buttons[point.button] = false;
+        else if (this.touch[point.role] === point) this.touch[point.role] = null;
+      }
+    };
+
+    c.addEventListener('touchstart', onStart, { passive: false });
+    c.addEventListener('touchmove', onMove, { passive: false });
+    c.addEventListener('touchend', onEnd, { passive: false });
+    c.addEventListener('touchcancel', onEnd, { passive: false });
+
+        addEventListener('gamepadconnected', (e) => { this.gamepadIndex = e.gamepad.index; });
     addEventListener('gamepaddisconnected', () => { this.gamepadIndex = null; });
   }
 
-  // touch action buttons, laid out above the right stick
+  /**
+   * Touch action buttons. They sit in the upper-middle band of each edge so
+   * the bottom corners stay free for the two thumb sticks — a button under a
+   * resting thumb makes the sticks unusable on a phone.
+   */
   buttonLayout(cw, ch) {
-    const r = 30;
-    const bx = cw - 74, by = ch - 210;
+    const s = Math.max(0.68, Math.min(1, Math.min(cw, ch) / 620));
+    const r = 27 * s;
+    const right = cw - 42 * s;
+    const top = Math.max(96, ch * 0.30);
     return [
-      { id: 'ability', label: 'Q', x: bx, y: by, r },
-      { id: 'grenade', label: 'G', x: bx - 72, y: by + 6, r: 26 },
-      { id: 'melee', label: 'F', x: bx - 16, y: by - 62, r: 26 },
-      { id: 'reload', label: 'R', x: bx - 82, y: by - 56, r: 24 },
-      { id: 'swap', label: 'E', x: 92, y: ch - 210, r: 24 },
+      { id: 'ability', label: 'Q', x: right, y: top, r: r * 1.16 },
+      { id: 'melee', label: 'F', x: right - 62 * s, y: top - 26 * s, r },
+      { id: 'grenade', label: 'G', x: right, y: top + 68 * s, r },
+      { id: 'reload', label: 'R', x: right - 62 * s, y: top + 44 * s, r: r * 0.9 },
+      { id: 'swap', label: 'E', x: 46 * s, y: top, r: r * 0.9 },
     ];
   }
 
   _buttonAt(x, y, cw, ch) {
     for (const b of this.buttonLayout(cw, ch)) {
-      if ((x - b.x) ** 2 + (y - b.y) ** 2 < (b.r + 8) ** 2) return b.id;
+      if ((x - b.x) ** 2 + (y - b.y) ** 2 < (b.r + 6) ** 2) return b.id;
     }
     return null;
   }
@@ -209,7 +252,7 @@ export class Input {
     if (this.touch.enabled && fighter) {
       const stick = (s, max = 58) => {
         if (!s) return null;
-        let dx = s.x - s.origin.x, dy = s.y - s.origin.y;
+        let dx = s.x - s.ox, dy = s.y - s.oy;
         const m = Math.hypot(dx, dy);
         if (m > max) { dx = (dx / m) * max; dy = (dy / m) * max; }
         return { x: dx / max, y: dy / max, m: Math.min(1, m / max) };
@@ -263,20 +306,20 @@ export class Input {
       if (!s) return;
       ctx.globalAlpha = 0.18;
       ctx.strokeStyle = color; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.arc(s.origin.x, s.origin.y, 58, 0, TAU); ctx.stroke();
+      ctx.beginPath(); ctx.arc(s.ox, s.oy, 58, 0, TAU); ctx.stroke();
       ctx.globalAlpha = 0.4;
-      let dx = s.x - s.origin.x, dy = s.y - s.origin.y;
+      let dx = s.x - s.ox, dy = s.y - s.oy;
       const m = Math.hypot(dx, dy);
       if (m > 58) { dx = (dx / m) * 58; dy = (dy / m) * 58; }
       ctx.fillStyle = color;
-      ctx.beginPath(); ctx.arc(s.origin.x + dx, s.origin.y + dy, 24, 0, TAU); ctx.fill();
+      ctx.beginPath(); ctx.arc(s.ox + dx, s.oy + dy, 24, 0, TAU); ctx.fill();
     };
     ring(this.touch.move, '#7ce0ff');
     ring(this.touch.aim, '#ff7ad0');
 
-    ctx.font = '700 15px "Rajdhani", system-ui, sans-serif';
     ctx.textAlign = 'center';
     for (const b of this.buttonLayout(cw, ch)) {
+      ctx.font = `700 ${Math.round(b.r * 0.6)}px "Rajdhani", system-ui, sans-serif`;
       const held = this.touch.buttons[b.id];
       ctx.globalAlpha = held ? 0.55 : 0.22;
       ctx.fillStyle = '#0d1424';
@@ -285,7 +328,7 @@ export class Input {
       ctx.stroke();
       ctx.globalAlpha = held ? 1 : 0.6;
       ctx.fillStyle = '#cfe8ff';
-      ctx.fillText(b.label, b.x, b.y + 5);
+      ctx.fillText(b.label, b.x, b.y + b.r * 0.22);
     }
     ctx.restore();
   }
