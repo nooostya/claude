@@ -59,10 +59,10 @@ export const MATCH = {
 };
 
 export const RENDER = {
-  baseWidth: 1280,       // virtual viewport the camera frames
-  baseHeight: 720,
-  minZoom: 0.62,
-  maxZoom: 1.25,
+  baseWidth: 1060,       // virtual viewport the camera frames
+  baseHeight: 600,
+  minZoom: 0.70,
+  maxZoom: 1.65,
   cameraLag: 0.0008,     // fraction remaining after 1s
   shakeDecay: 0.0009,
   maxShake: 26,

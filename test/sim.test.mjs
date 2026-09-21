@@ -147,3 +147,36 @@ test("Titan's armour reduces damage and Aegis blocks frontal fire", () => {
   const shielded = world.damage(t, 100, { byId: 2, x: t.x + 100, y: t.y });
   assert.ok(shielded < plain * 0.4, `Aegis barely helped: ${shielded} vs ${plain}`);
 });
+
+test('online mode leaves the scoreboard and kill feed to the server', () => {
+  const world = new World(buildMap('foundry'), { mode: 'online', localId: 1 });
+  const me = world.addFighter({ id: 1, heroId: 'nova', name: 'ME', isLocal: true });
+  const them = world.addFighter({ id: 2, heroId: 'bolt', name: 'THEM', isRemote: true });
+  me.spawnProtect = 0;
+
+  // A remote player kills us: our own client applies the damage, but must not
+  // invent a kill feed row or a score — the server broadcasts those.
+  world.damage(me, 9999, { byId: them.id, weapon: 'rifle', x: them.x, y: them.y });
+
+  assert.equal(me.alive, false, 'we should still die locally');
+  assert.equal(world.killFeed.length, 0, 'kill feed must come from the server');
+  assert.equal(them.kills, 0, 'scores must come from the server');
+  const events = world.drainEvents();
+  const kill = events.find((e) => e.type === 'kill');
+  assert.ok(kill, 'a kill event is still needed so the client can report the death');
+  assert.equal(kill.victimId, 1);
+  assert.equal(kill.killerId, 2);
+});
+
+test('local mode still keeps its own scoreboard and kill feed', () => {
+  const world = new World(buildMap('foundry'), { mode: 'local' });
+  const a = world.addFighter({ id: 1, heroId: 'nova', name: 'A' });
+  const b = world.addFighter({ id: 2, heroId: 'bolt', name: 'B' });
+  b.spawnProtect = 0;
+  world.damage(b, 9999, { byId: a.id, weapon: 'rifle' });
+  assert.equal(a.kills, 1);
+  assert.equal(b.deaths, 1);
+  assert.equal(world.killFeed.length, 1);
+  assert.equal(world.killFeed[0].victim, 'B');
+  assert.equal(world.killFeed[0].killer, 'A');
+});

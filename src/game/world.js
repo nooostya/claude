@@ -66,13 +66,15 @@ export class World {
     this.pickups = [];
     const m = this.map;
     m.crateSpots.forEach((s, i) => {
-      this.pickups.push(new Pickup(i % 4 === 3 ? 'ammo' : 'weapon', s.x, s.y, {
-        weaponId: rollPrimary(),
+      const kind = i % 4 === 3 ? 'ammo' : 'weapon';
+      this.pickups.push(new Pickup(kind, s.x, s.y, {
+        weaponId: rollPrimary(), netId: `c${i}`, index: i,
       }));
     });
     m.healthSpots.forEach((s, i) => {
-      this.pickups.push(new Pickup(i % 3 === 2 ? 'grenade' : 'health', s.x, s.y, {
-        amount: MATCH.healthPackAmount,
+      const kind = i % 3 === 2 ? 'grenade' : 'health';
+      this.pickups.push(new Pickup(kind, s.x, s.y, {
+        amount: MATCH.healthPackAmount, netId: `h${i}`, index: i,
       }));
     });
   }
@@ -161,7 +163,7 @@ export class World {
   _stepProjectile(p, dt) {
     p.life -= dt;
     if (p.life <= 0 || p.dead) {
-      if (p.type === 'grenade') this.explode(p.x, p.y, COMBAT.grenadeRadius, COMBAT.grenadeDamage, p);
+      if (p.type === 'grenade') this._detonate(p);
       return false;
     }
 
@@ -203,10 +205,20 @@ export class World {
     if (hit.left || hit.right) p.vx *= -0.52;
     if (Math.random() < 0.3) this.particles.trail(p.x, p.y, '#ff9a4d', 1.8, 0.18);
     if (p.fuse <= 0) {
-      this.explode(p.x, p.y, COMBAT.grenadeRadius, COMBAT.grenadeDamage, p);
+      this._detonate(p);
       return false;
     }
     return true;
+  }
+
+  _detonate(p) {
+    if (p.visualOnly) {
+      this.particles.explosion(p.x, p.y, COMBAT.grenadeRadius, '#ff9a4d');
+      this.addShake(10);
+      this.emit({ type: 'explosion', x: p.x, y: p.y, radius: COMBAT.grenadeRadius });
+      return;
+    }
+    this.explode(p.x, p.y, COMBAT.grenadeRadius, COMBAT.grenadeDamage, p);
   }
 
   _projectileHitsFighter(p) {
@@ -216,7 +228,7 @@ export class World {
       if (!segmentHitsBox(p.px, p.py, p.x, p.y, f.x, f.y, f.hw + 2, f.hh + 2)) continue;
 
       // Kage's Iaido deflects anything that reaches him during the slash.
-      if (f.deflecting && !p.explosive) {
+      if (f.deflecting && !p.explosive && !p.visualOnly) {
         p.vx *= -1; p.vy *= -1;
         p.ownerId = f.id; p.ownerTeam = f.team;
         p.hitIds.clear();
@@ -237,6 +249,16 @@ export class World {
   }
 
   _projectileImpact(p, x, y, target) {
+    if (p.visualOnly) {
+      if (p.explosive) {
+        this.particles.explosion(x, y, p.explosive.radius, p.color);
+        this.addShake(clamp(p.explosive.radius * 0.1, 3, 14));
+        this.emit({ type: 'explosion', x, y, radius: p.explosive.radius });
+      } else {
+        this.particles.impact(x, y, Math.atan2(p.vy, p.vx), p.color, 7);
+      }
+      return;
+    }
     if (p.explosive) {
       this.explode(x, y, p.explosive.radius, p.explosive.damage, p);
       return;
@@ -303,6 +325,7 @@ export class World {
     this.emit({
       type: 'beam', x0: x, y0: y, x1: wall.x, y1: wall.y,
       color: weapon.color, width: weapon.width, life: 0.16,
+      byId: shooter.id, weapon: weapon.id,
     });
     this.addShake(7);
   }
@@ -460,32 +483,39 @@ export class World {
     target.shielded = false;
 
     const killer = info.byId != null && info.byId !== target.id ? this.fighterById(info.byId) : null;
-    if (killer && killer.alive !== undefined) {
-      killer.kills++;
-      killer.streak++;
-    } else {
-      target.kills = Math.max(0, target.kills - 1); // suicide costs a point
+
+    // Online, the server owns the scoreboard and the kill feed: it echoes an
+    // authoritative `kill` message to everyone. Scoring here too would double
+    // count on the victim's client, which is the one that runs this path.
+    const serverScores = this.mode === 'online';
+    if (!serverScores) {
+      if (killer) {
+        killer.kills++;
+      } else {
+        target.kills = Math.max(0, target.kills - 1); // suicide costs a point
+      }
+      this.killFeed.push({
+        killer: killer ? killer.name : null,
+        killerHero: killer ? killer.heroId : null,
+        victim: target.name,
+        victimHero: target.heroId,
+        weapon: info.weapon || info.cause || 'unknown',
+        life: 5,
+      });
     }
+    if (killer) killer.streak++;
 
     this.particles.explosion(target.x, target.y, 64, target.hero.palette.accent);
     this.particles.blood(target.x, target.y, -Math.PI / 2, target.hero.palette.accent, 26);
     this.addShake(target.isLocal ? 18 : 9);
 
-    this.killFeed.push({
-      killer: killer ? killer.name : null,
-      killerHero: killer ? killer.heroId : null,
-      victim: target.name,
-      victimHero: target.heroId,
-      weapon: info.weapon || info.cause || 'unknown',
-      life: 5,
-    });
     this.emit({
       type: 'kill', victimId: target.id, killerId: killer?.id ?? null,
       weapon: info.weapon || info.cause, x: target.x, y: target.y,
       streak: killer?.streak ?? 0,
     });
 
-    if (killer && killer.kills >= this.scoreLimit) this.finish(killer);
+    if (!serverScores && killer && killer.kills >= this.scoreLimit) this.finish(killer);
   }
 
   respawn(f) {
@@ -513,7 +543,9 @@ export class World {
     for (const p of this.pickups) {
       p.bob += dt * 2.4;
       p.spin += dt * 1.1;
+      if (p.requested > 0) p.requested -= dt;
       if (!p.active) {
+        if (this.mode === 'online') continue;   // server drives respawns
         p.timer -= dt;
         if (p.timer <= 0) {
           p.active = true;
@@ -527,9 +559,51 @@ export class World {
         if (!f.alive || f.isRemote) continue;
         if (Math.abs(f.x - p.x) > p.radius + f.hw) continue;
         if (Math.abs(f.y - p.y) > p.radius + f.hh) continue;
+        if (this.mode === 'online') {
+          // The server decides who gets it, so all clients stay in agreement.
+          if (p.requested <= 0 && this.wouldTake(f, p)) {
+            p.requested = 0.5;
+            this.emit({ type: 'pickupRequest', netId: p.netId, by: f.id });
+          }
+          break;
+        }
         if (this.grantPickup(f, p)) break;
       }
     }
+  }
+
+  /** Would this fighter benefit from the pickup? Avoids spamming grab requests. */
+  wouldTake(f, p) {
+    switch (p.kind) {
+      case 'weapon': return true;
+      case 'health': return f.health < f.maxHealth;
+      case 'grenade': return f.grenades < COMBAT.grenadeMaxAmmo;
+      case 'ammo': return true;
+      default: return false;
+    }
+  }
+
+  /** Server-confirmed grab (online mode). */
+  applyPickupGrant(netId, byId, weaponId) {
+    const p = this.pickups.find((x) => x.netId === netId);
+    if (!p) return;
+    if (weaponId) p.weaponId = weaponId;
+    const f = this.fighterById(byId);
+    if (f && !f.isRemote) this.grantPickup(f, p);
+    else {
+      p.consume(MATCH.pickupRespawn);
+      this.particles.spawnBurst(p.x, p.y, p.kind === 'health' ? '#3dff9a' : '#7ce0ff');
+    }
+  }
+
+  /** Server-confirmed respawn (online mode). */
+  applyPickupReady(netId, weaponId) {
+    const p = this.pickups.find((x) => x.netId === netId);
+    if (!p) return;
+    p.active = true;
+    p.timer = 0;
+    if (weaponId) p.weaponId = weaponId;
+    this.particles.spawnBurst(p.x, p.y, '#7ce0ff');
   }
 
   grantPickup(f, p) {
@@ -558,7 +632,7 @@ export class World {
     if (!took) return false;
     p.consume(MATCH.pickupRespawn);
     this.particles.spawnBurst(p.x, p.y, p.kind === 'health' ? '#3dff9a' : '#7ce0ff');
-    this.emit({ type: 'pickup', kind: p.kind, id: p.id, by: f.id, weaponId: p.weaponId, local: f.isLocal });
+    this.emit({ type: 'pickup', kind: p.kind, id: p.id, netId: p.netId, by: f.id, weaponId: p.weaponId, local: f.isLocal });
     return true;
   }
 

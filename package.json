@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node server/server.js",
     "serve": "node server/server.js",
-    "test": "node --test test/"
+    "test": "node --test test/*.test.mjs"
   },
   "engines": { "node": ">=18" },
   "keywords": ["game", "canvas", "shooter", "multiplayer", "websocket"],

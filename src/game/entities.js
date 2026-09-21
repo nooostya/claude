@@ -33,6 +33,10 @@ export class Projectile {
     this.dead = false;
     this.chain = o.chain || null;         // Bolt's Overcharge rider
     this.remote = !!o.remote;             // spawned from a network event
+    // Visual-only projectiles come from another client. They are drawn and
+    // they explode for show, but they never deal damage here: the shooter's
+    // own client resolves its hits and reports them to the server.
+    this.visualOnly = !!o.visualOnly;
   }
 }
 
@@ -63,6 +67,9 @@ export const PICKUP_KINDS = {
 export class Pickup {
   constructor(kind, x, y, opts = {}) {
     this.id = freshId();
+    // Stable across clients: derived from the map's authored spot list, not
+    // from a runtime counter, so `netId` can be used as a wire identifier.
+    this.netId = opts.netId || `${kind[0]}${opts.index ?? 0}`;
     this.kind = kind;
     this.x = x; this.y = y;
     this.homeX = x; this.homeY = y;
@@ -73,6 +80,7 @@ export class Pickup {
     this.bob = Math.random() * Math.PI * 2;
     this.spin = 0;
     this.radius = PICKUP_KINDS[kind].radius;
+    this.requested = 0;
   }
 
   consume(respawn) {

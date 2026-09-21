@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<meta name="theme-color" content="#0a0e1c" />
+<title>Neon Militia — Jetpack Deathmatch</title>
+<meta name="description" content="A 2D jetpack deathmatch shooter with six distinct heroes. Play solo against bots or online against other pilots." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;800&family=Rajdhani:wght@500;600;700&display=swap" />
+<link rel="stylesheet" href="styles.css" />
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>🚀</text></svg>" />
+</head>
+<body>
+<div id="app">
+  <canvas id="game" aria-label="Game view"></canvas>
+
+  <div id="ui">
+    <!-- ------------------------------------------------ main menu -->
+    <section id="screen-menu" class="screen center">
+      <div class="logo">
+        <h1>NEON<span>MILITIA</span></h1>
+        <p class="tagline">Jetpack deathmatch · six heroes · one arena</p>
+      </div>
+      <nav class="menu-buttons">
+        <button class="btn primary" data-action="single">
+          <span class="btn-title">SINGLE PLAYER</span>
+          <span class="btn-sub">Deathmatch against bots</span>
+        </button>
+        <button class="btn" data-action="online">
+          <span class="btn-title">ONLINE MULTIPLAYER</span>
+          <span class="btn-sub">Fight other pilots</span>
+        </button>
+        <button class="btn ghost" data-action="controls">
+          <span class="btn-title">CONTROLS</span>
+        </button>
+      </nav>
+      <div class="menu-footer">
+        <button class="chip" data-toggle="sfx">SFX <b>ON</b></button>
+        <button class="chip" data-toggle="music">MUSIC <b>ON</b></button>
+        <button class="chip" data-toggle="fullscreen">FULLSCREEN</button>
+      </div>
+    </section>
+
+    <!-- ------------------------------------------------ loadout -->
+    <section id="screen-loadout" class="screen hidden">
+      <header class="bar">
+        <button class="btn small ghost" data-action="back">‹ BACK</button>
+        <h2 id="loadout-title">CHOOSE YOUR FIGHTER</h2>
+        <div class="spacer"></div>
+      </header>
+
+      <div class="loadout">
+        <div class="hero-grid" id="hero-grid" role="radiogroup" aria-label="Hero"></div>
+
+        <div class="hero-detail" id="hero-detail">
+          <canvas id="hero-stage" width="260" height="260" aria-hidden="true"></canvas>
+          <div class="hero-info">
+            <h3 id="hero-name">NOVA</h3>
+            <p class="hero-title" id="hero-title">Neon Ninja</p>
+            <p class="hero-blurb" id="hero-blurb"></p>
+            <div class="stats" id="hero-stats"></div>
+            <div class="ability-card">
+              <div class="ability-head">
+                <span class="key">Q</span>
+                <strong id="ability-name">Phase Dash</strong>
+                <span class="cd" id="ability-cd">4.5s</span>
+              </div>
+              <p id="ability-desc"></p>
+            </div>
+            <div class="sidearm" id="sidearm"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="setup" id="setup-solo">
+        <label class="field">
+          <span>ARENA</span>
+          <select id="sel-map"></select>
+        </label>
+        <label class="field">
+          <span>BOTS</span>
+          <select id="sel-bots"></select>
+        </label>
+        <label class="field">
+          <span>DIFFICULTY</span>
+          <select id="sel-diff"></select>
+        </label>
+        <label class="field">
+          <span>SCORE LIMIT</span>
+          <select id="sel-score"></select>
+        </label>
+      </div>
+
+      <div class="setup hidden" id="setup-online">
+        <label class="field">
+          <span>CALLSIGN</span>
+          <input id="inp-name" maxlength="16" placeholder="PILOT" autocomplete="off" />
+        </label>
+        <label class="field wide">
+          <span>SERVER</span>
+          <input id="inp-server" placeholder="ws://localhost:8080" autocomplete="off" />
+        </label>
+        <label class="field">
+          <span>ROOM</span>
+          <input id="inp-room" maxlength="16" value="arena" autocomplete="off" />
+        </label>
+      </div>
+
+      <footer class="bar">
+        <p class="hint" id="loadout-hint"></p>
+        <button class="btn primary" id="btn-start">DEPLOY</button>
+      </footer>
+    </section>
+
+    <!-- ------------------------------------------------ controls -->
+    <section id="screen-controls" class="screen hidden">
+      <header class="bar">
+        <button class="btn small ghost" data-action="back">‹ BACK</button>
+        <h2>CONTROLS</h2>
+        <div class="spacer"></div>
+      </header>
+      <div class="controls-grid">
+        <div class="control-col">
+          <h4>KEYBOARD &amp; MOUSE</h4>
+          <dl>
+            <dt>A / D</dt><dd>Move left and right</dd>
+            <dt>W / Space</dt><dd>Jetpack — hold to fly, watch your fuel</dd>
+            <dt>S</dt><dd>Drop through a platform</dd>
+            <dt>Mouse</dt><dd>Aim</dd>
+            <dt>Left click</dt><dd>Fire</dd>
+            <dt>Right click / F</dt><dd>Melee</dd>
+            <dt>G</dt><dd>Throw grenade</dd>
+            <dt>Q / Shift</dt><dd>Hero ability</dd>
+            <dt>R</dt><dd>Reload</dd>
+            <dt>E</dt><dd>Swap weapon</dd>
+            <dt>Tab</dt><dd>Scoreboard</dd>
+            <dt>Esc</dt><dd>Pause</dd>
+            <dt>M</dt><dd>Mute</dd>
+          </dl>
+        </div>
+        <div class="control-col">
+          <h4>TOUCH</h4>
+          <dl>
+            <dt>Left half</dt><dd>Virtual stick — push up for jetpack, down to drop</dd>
+            <dt>Right half</dt><dd>Aim stick — push past halfway to fire</dd>
+            <dt>Buttons</dt><dd>Ability, grenade, melee, reload, swap</dd>
+          </dl>
+          <h4>GAMEPAD</h4>
+          <dl>
+            <dt>Left stick</dt><dd>Move · up for jetpack</dd>
+            <dt>Right stick</dt><dd>Aim · push to fire</dd>
+            <dt>RT / RB</dt><dd>Fire</dd>
+            <dt>A / LT</dt><dd>Jetpack</dd>
+            <dt>X</dt><dd>Melee</dd>
+            <dt>B / LB</dt><dd>Grenade</dd>
+            <dt>Y</dt><dd>Ability</dd>
+          </dl>
+        </div>
+        <div class="control-col">
+          <h4>HOW TO WIN</h4>
+          <p>Deathmatch. First to the score limit takes the match; if the clock
+          runs out, the highest score wins.</p>
+          <h4>THE JETPACK IS THE GAME</h4>
+          <p>Fuel drains while you thrust and refills the moment you stop. Fly
+          in bursts, use walls to slide, and remember that every shot kicks you
+          backwards — recoil is a movement tool.</p>
+          <h4>LOADOUT</h4>
+          <p>Your sidearm is tied to your hero and never runs out of reserve
+          ammo. Primary weapons come from crates and are dropped when dry.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ------------------------------------------------ overlays -->
+    <section id="screen-pause" class="screen overlay hidden center">
+      <div class="panel">
+        <h2>PAUSED</h2>
+        <button class="btn primary" data-action="resume">RESUME</button>
+        <button class="btn" data-action="restart">RESTART MATCH</button>
+        <button class="btn ghost" data-action="quit">QUIT TO MENU</button>
+      </div>
+    </section>
+
+    <section id="screen-results" class="screen overlay hidden center">
+      <div class="panel wide">
+        <h2 id="results-title">MATCH OVER</h2>
+        <p id="results-sub"></p>
+        <div id="results-table"></div>
+        <div class="row">
+          <button class="btn primary" data-action="rematch">REMATCH</button>
+          <button class="btn ghost" data-action="quit">MENU</button>
+        </div>
+      </div>
+    </section>
+
+    <div id="connecting" class="overlay hidden center">
+      <div class="panel">
+        <div class="spinner"></div>
+        <p id="connecting-text">CONNECTING…</p>
+        <button class="btn ghost small" data-action="cancel-connect">CANCEL</button>
+      </div>
+    </div>
+
+    <div id="error-toast" class="hidden"></div>
+  </div>
+</div>
+<script type="module" src="src/main.js"></script>
+</body>
+</html>
